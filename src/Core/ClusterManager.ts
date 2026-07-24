@@ -226,6 +226,15 @@ export class ClusterManager extends EventEmitter {
         this.promise = new PromiseHandler();
 
         this.hooks = new ClusterManagerHooks();
+
+        // Node never kills forked children when their parent exits — without this, a manager
+        // process that dies (crash, pm2 restart, etc.) orphans its clusters, which stay connected
+        // to the gateway and keep handling events alongside the next generation the new manager
+        // spawns. `exit` fires on every process shutdown path and only allows synchronous work,
+        // which matches `Cluster#kill`.
+        process.on('exit', () => {
+            for (const cluster of this.clusters.values()) cluster.kill({ reason: 'manager process exit', force: true });
+        });
     }
 
     /**
