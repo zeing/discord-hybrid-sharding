@@ -1,13 +1,15 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ChildClient = exports.Child = void 0;
-const child_process_1 = require("child_process");
-class Child {
+const bun_1 = require("bun");
+const events_1 = require("events");
+class Child extends events_1.EventEmitter {
     file;
     process;
     processOptions;
     args;
     constructor(file, options) {
+        super();
         this.file = file;
         this.process = null;
         this.processOptions = {};
@@ -40,34 +42,78 @@ class Child {
             this.processOptions.stdio = options.stdio;
         if (options.uid)
             this.processOptions.uid = options.uid;
+        if (options.windowsHide)
+            this.processOptions.windowsHide = options.windowsHide;
         if (options.windowsVerbatimArguments)
             this.processOptions.windowsVerbatimArguments = options.windowsVerbatimArguments;
         if (options.timeout)
             this.processOptions.timeout = options.timeout;
     }
     spawn() {
-        return (this.process = (0, child_process_1.fork)(this.file, this.args, this.processOptions));
+        const { execPath, execArgv, env, silent, stdio, ...options } = this.processOptions;
+        try {
+            const subprocess = (0, bun_1.spawn)({
+                ...options,
+                serialization: options.serialization ?? 'json',
+                cmd: [execPath ?? process.execPath, ...(execArgv ?? []), this.file, ...(this.args ?? [])],
+                env: env ? stringifyEnv(env) : undefined,
+                stdio: stdio ?? (silent ? ['pipe', 'pipe', 'pipe'] : ['inherit', 'inherit', 'inherit']),
+                ipc: message => {
+                    if (this.process === subprocess)
+                        this.emit('message', message);
+                },
+                onExit: (_, exitCode, signalCode, error) => {
+                    // Ignore exits of a previous generation, e.g. after respawn()
+                    if (this.process !== subprocess)
+                        return;
+                    if (error)
+                        this.emit('error', error);
+                    this.emit('exit', exitCode, signalCode);
+                },
+            });
+            this.process = subprocess;
+        }
+        catch (error) {
+            // Bun throws synchronously (e.g. invalid execPath), defer so listeners can be attached first
+            this.process = null;
+            setImmediate(() => this.emit('error', error));
+        }
+        return this;
     }
     respawn() {
         this.kill();
         return this.spawn();
     }
     kill() {
-        this.process?.removeAllListeners();
-        return this.process?.kill();
+        this.removeAllListeners();
+        const subprocess = this.process;
+        this.process = null;
+        return subprocess?.kill();
     }
     send(message) {
         return new Promise((resolve, reject) => {
-            this.process?.send(message, err => {
-                if (err)
-                    reject(err);
-                else
-                    resolve(this);
-            });
+            try {
+                if (!this.process)
+                    throw new Error('CLUSTERING_NO_CHILD_EXISTS');
+                this.process.send(message);
+                resolve(this);
+            }
+            catch (err) {
+                reject(err);
+            }
         });
     }
 }
 exports.Child = Child;
+/** Bun.spawn only accepts string values, mirror child_process.fork which skips undefined and stringifies the rest */
+function stringifyEnv(env) {
+    const result = {};
+    for (const [key, value] of Object.entries(env)) {
+        if (value !== undefined)
+            result[key] = String(value);
+    }
+    return result;
+}
 class ChildClient {
     ipc;
     constructor() {

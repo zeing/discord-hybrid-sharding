@@ -41,6 +41,7 @@
     },
     "homepage": "https://github.com/meister03/discord-hybrid-sharding#readme",
     "devDependencies": {
+        "@types/bun": "^1.4.4",
         "@types/jest": "^29.5.12",
         "@types/node": "^20.12.2",
         "@typescript-eslint/eslint-plugin": "^7.5.0",

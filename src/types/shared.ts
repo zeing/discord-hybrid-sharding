@@ -1,4 +1,5 @@
-import { ChildProcess, Serializable } from "child_process";
+import { Subprocess } from "bun";
+import { Serializable } from "child_process";
 import { Client } from "discord.js";
 import { Worker } from "worker_threads";
 
@@ -153,10 +154,10 @@ export interface ClusterManagerEvents {
 
 export interface ClusterEvents {
     message: [message: BaseMessage | Serializable];
-    death: [cluster: Cluster, thread: ChildProcess | Worker | undefined | null];
+    death: [cluster: Cluster, thread: Subprocess | Worker | undefined | null];
     kill: [cluster: Cluster, reason: string | undefined];
     error: [error: Error];
-    spawn: [thread: ChildProcess | Worker | undefined | null];
+    spawn: [thread: Subprocess | Worker | undefined | null];
 }
 
 export interface ClusterClientEvents<DiscordClient> {
