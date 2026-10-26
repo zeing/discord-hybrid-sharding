@@ -59,6 +59,10 @@ class Cluster extends events_1.default {
      */
     ready;
     /**
+     * Nonces of eval/request promises awaiting a reply from this cluster, rejected when it dies
+     */
+    pending;
+    /**
      * @param manager Manager that is creating this cluster
      * @param id ID of this cluster
      * @param shardList
@@ -83,6 +87,7 @@ class Cluster extends events_1.default {
         });
         this.ready = false;
         this.thread = null;
+        this.pending = new Set();
         this.restarts = {
             current: this.manager.restarts.current ?? 0,
             max: this.manager.restarts.max,
@@ -175,11 +180,17 @@ class Cluster extends events_1.default {
      * @param options.force Whether the Cluster should be force kill and be ever respawned...
      */
     kill(options) {
-        this.thread?.kill();
         if (this.thread) {
+            /**
+             * Emitted before the cluster's child process/worker is killed on purpose.
+             * The thread's listeners are removed, so no `death` event follows.
+             * @event Cluster#kill
+             */
+            this.emit('kill', this, options?.reason);
+            this.thread.kill();
             this.thread = null;
         }
-        this.manager.heartbeat?.clusters.get(this.id)?.stop();
+        this._rejectPending('CLUSTERING_CLUSTER_KILLED');
         this.restarts.cleanup();
         this.manager._debug('[KILL] Cluster killed with reason: ' + (options?.reason || 'not given'), this.id);
     }
@@ -192,7 +203,6 @@ class Cluster extends events_1.default {
             this.kill({ force: true });
         if (delay > 0)
             await (0, Util_1.delayFor)(delay);
-        this.manager.heartbeat?.clusters.get(this.id)?.stop();
         return this.spawn(timeout);
     }
     /**
@@ -201,7 +211,7 @@ class Cluster extends events_1.default {
      */
     send(message) {
         if (typeof message === 'object')
-            this.thread?.send(new IPCMessage_js_1.BaseMessage(message).toJSON());
+            return this.thread?.send(new IPCMessage_js_1.BaseMessage(message).toJSON());
         else
             return this.thread?.send(message);
     }
@@ -218,7 +228,7 @@ class Cluster extends events_1.default {
     request(message) {
         message._type = shared_1.messageType.CUSTOM_REQUEST;
         this.send(message);
-        return this.manager.promise.create(message, message.options);
+        return this._track(message, message.options);
     }
     /**
      * Evaluates a script or function on the cluster, in the context of the {@link DjsDiscordClient}.
@@ -236,7 +246,27 @@ class Cluster extends events_1.default {
         const nonce = (0, Util_1.generateNonce)();
         const message = { nonce, _eval, options: { timeout }, _type: shared_1.messageType.CLIENT_EVAL_REQUEST };
         await this.send(message);
-        return await this.manager.promise.create(message, message.options);
+        return await this._track(message, message.options);
+    }
+    /**
+     * Stores the reply promise and remembers its nonce, so it can be rejected when the cluster dies.
+     * @private
+     */
+    _track(message, options) {
+        const promise = this.manager.promise.create(message, options);
+        const nonce = message.nonce;
+        this.pending.add(nonce);
+        return promise.finally(() => this.pending.delete(nonce));
+    }
+    /**
+     * Rejects all promises awaiting a reply from this cluster.
+     * @private
+     */
+    _rejectPending(reason) {
+        for (const nonce of this.pending) {
+            this.manager.promise.reject(nonce, new Error(`${reason} | ClusterId: ${this.id}`));
+        }
+        this.pending.clear();
     }
     /**
      * @param reason If maintenance should be enabled with a given reason or disabled when nonce provided
@@ -284,8 +314,8 @@ class Cluster extends events_1.default {
          */
         const respawn = this.manager.respawn;
         // Cleanup functions
-        this.manager.heartbeat?.clusters.get(this.id)?.stop();
         this.restarts.cleanup();
+        this._rejectPending('CLUSTERING_CLUSTER_DIED');
         this.emit('death', this, this.thread?.process);
         this.manager._debug('[DEATH] Cluster died, attempting respawn | Restarts Left: ' + (this.restarts.max - this.restarts.current), this.id);
         this.ready = false;

@@ -163,7 +163,7 @@ export declare class ClusterManager extends EventEmitter {
     /**
      * @param reason If maintenance should be enabled on all clusters with a given reason or disabled when nonce provided
      */
-    triggerMaintenance(reason: string): void;
+    triggerMaintenance(reason?: string): void;
     /**
      * Logs out the Debug Messages
      * <warn>Using this method just emits the Debug Event.</warn>

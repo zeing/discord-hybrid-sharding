@@ -241,9 +241,9 @@ export class ClusterManager extends EventEmitter {
      * Spawns multiple internal shards.
      */
     public async spawn({
-            amount = this.spawnOptions.amount = this.totalShards,
-            delay = this.spawnOptions.delay = 7000,
-            timeout = this.spawnOptions.timeout = -1
+            amount = this.totalShards,
+            delay = 7000,
+            timeout = -1
         } = this.spawnOptions
     ) {
         if (delay < 7000) {
@@ -469,11 +469,11 @@ export class ClusterManager extends EventEmitter {
      * @param options Options for respawning shards
      */
     public async respawnAll({
-        clusterDelay = (this.spawnOptions.delay = 5500),
-        respawnDelay = (this.spawnOptions.delay = 5500),
+        clusterDelay = 5500,
+        respawnDelay = 5500,
         timeout = -1,
     } = {}) {
-        this.promise.nonce.clear();
+        this.promise.rejectAll(new Error('CLUSTERING_RESPAWN_ALL'));
         let s = 0;
         let i = 0;
         this._debug('Respawning all Clusters');
@@ -529,7 +529,7 @@ export class ClusterManager extends EventEmitter {
     /**
      * @param reason If maintenance should be enabled on all clusters with a given reason or disabled when nonce provided
      */
-    triggerMaintenance(reason: string) {
+    triggerMaintenance(reason?: string) {
         return Array.from(this.clusters.values()).forEach(cluster => cluster.triggerMaintenance(reason));
     }
     /**

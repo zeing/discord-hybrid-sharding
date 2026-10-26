@@ -84,6 +84,11 @@ export class Cluster extends EventEmitter {
     ready: boolean;
 
     /**
+     * Nonces of eval/request promises awaiting a reply from this cluster, rejected when it dies
+     */
+    pending: Set<string>;
+
+    /**
      * @param manager Manager that is creating this cluster
      * @param id ID of this cluster
      * @param shardList
@@ -118,6 +123,8 @@ export class Cluster extends EventEmitter {
         this.ready = false;
 
         this.thread = null;
+
+        this.pending = new Set();
 
         this.restarts = {
             current: this.manager.restarts.current ?? 0,
@@ -218,11 +225,17 @@ export class Cluster extends EventEmitter {
      * @param options.force Whether the Cluster should be force kill and be ever respawned...
      */
     public kill(options: ClusterKillOptions) {
-        this.thread?.kill();
         if (this.thread) {
+            /**
+             * Emitted before the cluster's child process/worker is killed on purpose.
+             * The thread's listeners are removed, so no `death` event follows.
+             * @event Cluster#kill
+             */
+            this.emit('kill', this, options?.reason);
+            this.thread.kill();
             this.thread = null;
         }
-        this.manager.heartbeat?.clusters.get(this.id)?.stop();
+        this._rejectPending('CLUSTERING_CLUSTER_KILLED');
         this.restarts.cleanup();
         this.manager._debug('[KILL] Cluster killed with reason: ' + (options?.reason || 'not given'), this.id);
     }
@@ -233,7 +246,6 @@ export class Cluster extends EventEmitter {
     public async respawn({ delay = 5500, timeout = -1 } = this.manager.spawnOptions) {
         if (this.thread) this.kill({ force: true });
         if (delay > 0) await delayFor(delay);
-        this.manager.heartbeat?.clusters.get(this.id)?.stop();
         return this.spawn(timeout);
     }
     /**
@@ -241,7 +253,7 @@ export class Cluster extends EventEmitter {
      * @param  message Message to send to the cluster
      */
     public send(message: RawMessage) {
-        if (typeof message === 'object') this.thread?.send(new BaseMessage(message).toJSON());
+        if (typeof message === 'object') return this.thread?.send(new BaseMessage(message).toJSON());
         else return this.thread?.send(message);
     }
 
@@ -258,7 +270,7 @@ export class Cluster extends EventEmitter {
     public request(message: RawMessage) {
         message._type = messageType.CUSTOM_REQUEST;
         this.send(message);
-        return this.manager.promise.create(message, message.options);
+        return this._track(message, message.options);
     }
     /**
      * Evaluates a script or function on the cluster, in the context of the {@link DjsDiscordClient}.
@@ -276,7 +288,29 @@ export class Cluster extends EventEmitter {
         const nonce = generateNonce();
         const message = { nonce, _eval, options: { timeout }, _type: messageType.CLIENT_EVAL_REQUEST };
         await this.send(message);
-        return await this.manager.promise.create(message, message.options);
+        return await this._track(message, message.options);
+    }
+
+    /**
+     * Stores the reply promise and remembers its nonce, so it can be rejected when the cluster dies.
+     * @private
+     */
+    private _track(message: RawMessage, options: { timeout?: number }) {
+        const promise = this.manager.promise.create(message, options);
+        const nonce = message.nonce as string;
+        this.pending.add(nonce);
+        return promise.finally(() => this.pending.delete(nonce));
+    }
+
+    /**
+     * Rejects all promises awaiting a reply from this cluster.
+     * @private
+     */
+    private _rejectPending(reason: string) {
+        for (const nonce of this.pending) {
+            this.manager.promise.reject(nonce, new Error(`${reason} | ClusterId: ${this.id}`));
+        }
+        this.pending.clear();
     }
 
     /**
@@ -325,8 +359,8 @@ export class Cluster extends EventEmitter {
         const respawn = this.manager.respawn;
 
         // Cleanup functions
-        this.manager.heartbeat?.clusters.get(this.id)?.stop();
         this.restarts.cleanup();
+        this._rejectPending('CLUSTERING_CLUSTER_DIED');
 
         this.emit('death', this, this.thread?.process);
 

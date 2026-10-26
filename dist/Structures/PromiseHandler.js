@@ -24,6 +24,19 @@ class PromiseHandler {
             }
         }
     }
+    reject(nonce, error) {
+        const promise = this.nonce.get(nonce);
+        if (!promise)
+            return;
+        if (promise.timeout)
+            clearTimeout(promise.timeout);
+        this.nonce.delete(nonce);
+        promise.reject(error);
+    }
+    rejectAll(error) {
+        for (const nonce of Array.from(this.nonce.keys()))
+            this.reject(nonce, error);
+    }
     async create(message, options) {
         if (!options)
             options = {};

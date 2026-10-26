@@ -23,6 +23,8 @@ export declare class PromiseHandler {
     nonce: Map<string, StoredPromise>;
     constructor();
     resolve(message: ResolveMessage): void;
+    reject(nonce: string, error: Error): void;
+    rejectAll(error: Error): void;
     create(message: RawMessage & {
         options?: PromiseCreateOptions;
         stack?: string;

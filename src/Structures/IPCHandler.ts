@@ -51,7 +51,7 @@ export class ClusterHandler {
         if (message._type === messageType.CLIENT_MANAGER_EVAL_REQUEST) {
             this.cluster.manager.evalOnManager(message._eval).then(result => {
                 if (result._error)
-                    this.ipc.send({
+                    return this.ipc.send({
                         nonce: message.nonce,
                         _type: messageType.CLIENT_MANAGER_EVAL_RESPONSE,
                         _error: makePlainError(result._error),

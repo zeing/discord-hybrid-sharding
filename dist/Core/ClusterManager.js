@@ -199,7 +199,7 @@ class ClusterManager extends events_1.default {
     /**
      * Spawns multiple internal shards.
      */
-    async spawn({ amount = this.spawnOptions.amount = this.totalShards, delay = this.spawnOptions.delay = 7000, timeout = this.spawnOptions.timeout = -1 } = this.spawnOptions) {
+    async spawn({ amount = this.totalShards, delay = 7000, timeout = -1 } = this.spawnOptions) {
         if (delay < 7000) {
             process.emitWarning(`Spawn Delay (delay: ${delay}) is smaller than 7s, this can cause global rate limits on /gateway/bot`, {
                 code: 'CLUSTER_MANAGER',
@@ -387,8 +387,8 @@ class ClusterManager extends events_1.default {
      * Kills all running clusters and respawns them.
      * @param options Options for respawning shards
      */
-    async respawnAll({ clusterDelay = (this.spawnOptions.delay = 5500), respawnDelay = (this.spawnOptions.delay = 5500), timeout = -1, } = {}) {
-        this.promise.nonce.clear();
+    async respawnAll({ clusterDelay = 5500, respawnDelay = 5500, timeout = -1, } = {}) {
+        this.promise.rejectAll(new Error('CLUSTERING_RESPAWN_ALL'));
         let s = 0;
         let i = 0;
         this._debug('Respawning all Clusters');

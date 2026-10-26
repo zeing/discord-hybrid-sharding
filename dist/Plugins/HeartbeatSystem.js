@@ -25,6 +25,15 @@ class HeartbeatManager {
         this.start();
     }
     start() {
+        this.manager?.on('clusterCreate', (cluster) => {
+            // Old and new clusters share an id while reclustering, so only stop the heartbeat this cluster owns
+            const stop = () => {
+                const heartbeat = this.clusters.get(cluster.id);
+                if (heartbeat?.instance === cluster)
+                    heartbeat.stop();
+            };
+            cluster.on('death', stop).on('kill', stop);
+        });
         this.manager?.on('clusterReady', (cluster) => {
             if (this.clusters.has(cluster.id))
                 this.clusters.get(cluster.id)?.stop();
@@ -37,7 +46,9 @@ class HeartbeatManager {
         this.clusters.get(cluster.id)?.stop();
         this.manager?._debug(`[Heartbeat_MISSING] ${reason}`, cluster.id);
         if (cluster.restarts.current < cluster.restarts.max) {
-            cluster.respawn(this.manager?.spawnOptions);
+            cluster.restarts.append();
+            cluster.kill({ force: true, reason: `[Heartbeat_MISSING] ${reason}` });
+            cluster.respawn(this.manager?.spawnOptions).catch(err => cluster.emit('error', err));
             this.manager?._debug('[Heartbeat_MISSING] Attempted Respawn', cluster.id);
         }
         else {

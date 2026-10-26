@@ -69,11 +69,14 @@ export class ChildClient {
     ipc: NodeJS.Process;
     constructor() {
         this.ipc = process;
+        // The manager died without killing us (SIGKILL, OOM): exit instead of staying connected
+        // to the gateway next to the clusters a new manager spawns
+        process.once('disconnect', () => process.exit(0));
     }
     public send(message: Serializable) {
         const process = this.ipc;
         return new Promise<void>((resolve, reject) => {
-            process.send?.(message, (err: Error) => {
+            process.send?.(message, (err: Error | null) => {
                 if (err) reject(err);
                 else resolve();
             });

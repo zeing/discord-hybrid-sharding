@@ -154,6 +154,7 @@ export interface ClusterManagerEvents {
 export interface ClusterEvents {
     message: [message: BaseMessage | Serializable];
     death: [cluster: Cluster, thread: ChildProcess | Worker | undefined | null];
+    kill: [cluster: Cluster, reason: string | undefined];
     error: [error: Error];
     spawn: [thread: ChildProcess | Worker | undefined | null];
 }

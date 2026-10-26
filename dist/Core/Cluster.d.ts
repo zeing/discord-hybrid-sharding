@@ -66,6 +66,10 @@ export declare class Cluster extends EventEmitter {
      */
     ready: boolean;
     /**
+     * Nonces of eval/request promises awaiting a reply from this cluster, rejected when it dies
+     */
+    pending: Set<string>;
+    /**
      * @param manager Manager that is creating this cluster
      * @param id ID of this cluster
      * @param shardList
@@ -114,6 +118,16 @@ export declare class Cluster extends EventEmitter {
      * @returns Result of the script execution
      */
     eval(script: string, context: any, timeout: number): Promise<unknown>;
+    /**
+     * Stores the reply promise and remembers its nonce, so it can be rejected when the cluster dies.
+     * @private
+     */
+    private _track;
+    /**
+     * Rejects all promises awaiting a reply from this cluster.
+     * @private
+     */
+    private _rejectPending;
     /**
      * @param reason If maintenance should be enabled with a given reason or disabled when nonce provided
      */

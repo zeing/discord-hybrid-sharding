@@ -72,6 +72,9 @@ class ChildClient {
     ipc;
     constructor() {
         this.ipc = process;
+        // The manager died without killing us (SIGKILL, OOM): exit instead of staying connected
+        // to the gateway next to the clusters a new manager spawns
+        process.once('disconnect', () => process.exit(0));
     }
     send(message) {
         const process = this.ipc;

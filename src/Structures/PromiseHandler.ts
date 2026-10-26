@@ -41,6 +41,18 @@ export class PromiseHandler {
         }
     }
 
+    public reject(nonce: string, error: Error) {
+        const promise = this.nonce.get(nonce);
+        if (!promise) return;
+        if (promise.timeout) clearTimeout(promise.timeout);
+        this.nonce.delete(nonce);
+        promise.reject(error);
+    }
+
+    public rejectAll(error: Error) {
+        for (const nonce of Array.from(this.nonce.keys())) this.reject(nonce, error);
+    }
+
     public async create(
         message: RawMessage & { options?: PromiseCreateOptions; stack?: string },
         options: PromiseCreateOptions,
