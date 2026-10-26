@@ -1,7 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ChildClient = exports.Child = void 0;
-const bun_1 = require("bun");
 const events_1 = require("events");
 class Child extends events_1.EventEmitter {
     file;
@@ -52,7 +51,7 @@ class Child extends events_1.EventEmitter {
     spawn() {
         const { execPath, execArgv, env, silent, stdio, ...options } = this.processOptions;
         try {
-            const subprocess = (0, bun_1.spawn)({
+            const subprocess = Bun.spawn({
                 ...options,
                 serialization: options.serialization ?? 'json',
                 cmd: [execPath ?? process.execPath, ...(execArgv ?? []), this.file, ...(this.args ?? [])],

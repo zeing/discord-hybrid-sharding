@@ -1,4 +1,6 @@
-import { spawn, Spawn, Subprocess } from 'bun';
+// Type-only: a value import compiles to require('bun'), which a consumer bundling for a non-Bun
+// target (e.g. `bun build --target node`) cannot resolve. The runtime reaches Bun through its global.
+import type { Spawn, Subprocess } from 'bun';
 import { Serializable } from 'child_process';
 import { EventEmitter } from 'events';
 
@@ -70,7 +72,7 @@ export class Child extends EventEmitter {
     public spawn() {
         const { execPath, execArgv, env, silent, stdio, ...options } = this.processOptions;
         try {
-            const subprocess = spawn({
+            const subprocess = Bun.spawn({
                 ...options,
                 serialization: options.serialization ?? 'json',
                 cmd: [execPath ?? process.execPath, ...(execArgv ?? []), this.file, ...(this.args ?? [])],

@@ -1,4 +1,4 @@
-import { Subprocess } from "bun";
+import type { Subprocess } from "bun";
 import { Serializable } from "child_process";
 import { Client } from "discord.js";
 import { Worker } from "worker_threads";

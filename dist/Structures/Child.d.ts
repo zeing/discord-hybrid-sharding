@@ -1,4 +1,4 @@
-import { Spawn, Subprocess } from 'bun';
+import type { Spawn, Subprocess } from 'bun';
 import { Serializable } from 'child_process';
 import { EventEmitter } from 'events';
 export interface ChildProcessOptions {
