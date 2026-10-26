@@ -160,6 +160,14 @@ export interface ClusterEvents {
     spawn: [thread: Subprocess | Worker | undefined | null];
 }
 
+export interface ClusterClientOptions {
+    /**
+     * Default timeout in ms for replies this client awaits from the manager (`request`, `broadcastEval`).
+     * A per-call `timeout` overrides it. Unset means no timeout.
+     */
+    requestTimeout?: number;
+}
+
 export interface ClusterClientEvents<DiscordClient> {
     message: [message: BaseMessage | Serializable];
     ready: [clusterClient: ClusterClient<DiscordClient>];

@@ -24,12 +24,17 @@ class ClusterClient extends events_1.default {
     process;
     messageHandler;
     promise;
-    constructor(client) {
+    requestTimeout;
+    constructor(client, options = {}) {
         super();
         /**
          * Client for the Cluster
          */
         this.client = client;
+        /**
+         * Default timeout for replies awaited from the manager
+         */
+        this.requestTimeout = options.requestTimeout;
         /**
          * Mode the Cluster was spawned with
          */
@@ -132,14 +137,14 @@ class ClusterClient extends events_1.default {
     async broadcastEval(script, options) {
         if (!script || (typeof script !== 'string' && typeof script !== 'function'))
             throw new TypeError('Script for BroadcastEvaling has not been provided or must be a valid String/Function!');
-        const broadcastOptions = options || { context: undefined, _type: undefined, timeout: undefined };
+        const broadcastOptions = { ...options, timeout: options?.timeout ?? this.requestTimeout };
         script =
             typeof script === 'function' ? `(${script})(this, ${JSON.stringify(broadcastOptions.context)})` : script;
         const nonce = (0, Util_1.generateNonce)();
         const message = {
             nonce,
             _eval: script,
-            options,
+            options: broadcastOptions,
             _type: broadcastOptions._type || shared_1.messageType.CLIENT_BROADCAST_REQUEST,
         };
         await this.send(message);
@@ -157,7 +162,7 @@ class ClusterClient extends events_1.default {
         const rawMessage = message || { _type: undefined };
         rawMessage._type = shared_1.messageType.CUSTOM_REQUEST;
         this.send(rawMessage);
-        return this.promise.create(rawMessage, {});
+        return this.promise.create(rawMessage, { timeout: rawMessage.options?.timeout ?? this.requestTimeout });
     }
     /**
      * Requests a respawn of all clusters.

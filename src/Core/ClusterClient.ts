@@ -9,7 +9,7 @@ import { BaseMessage, IPCMessage, RawMessage } from "../Structures/IPCMessage";
 import { PromiseHandler } from "../Structures/PromiseHandler";
 import { WorkerClient } from "../Structures/Worker";
 import {
-	Awaitable, ClusterClientEvents, DjsDiscordClient, evalOptions, Events, messageType, Serialized
+	Awaitable, ClusterClientEvents, ClusterClientOptions, DjsDiscordClient, evalOptions, Events, messageType, Serialized
 } from "../types/shared";
 import { generateNonce } from "../Util/Util";
 
@@ -24,12 +24,18 @@ export class ClusterClient<DiscordClient = DjsDiscordClient> extends EventEmitte
     process: ChildClient | WorkerClient | null;
     messageHandler: any;
     promise: PromiseHandler;
-    constructor(client: DiscordClient) {
+    requestTimeout?: number;
+    constructor(client: DiscordClient, options: ClusterClientOptions = {}) {
         super();
         /**
          * Client for the Cluster
          */
         this.client = client;
+
+        /**
+         * Default timeout for replies awaited from the manager
+         */
+        this.requestTimeout = options.requestTimeout;
 
         /**
          * Mode the Cluster was spawned with
@@ -188,14 +194,14 @@ export class ClusterClient<DiscordClient = DjsDiscordClient> extends EventEmitte
                 'Script for BroadcastEvaling has not been provided or must be a valid String/Function!',
             );
 
-        const broadcastOptions = options || { context: undefined, _type: undefined, timeout: undefined };
+        const broadcastOptions: evalOptions | evalOptions<P> = { ...options, timeout: options?.timeout ?? this.requestTimeout };
         script =
             typeof script === 'function' ? `(${script})(this, ${JSON.stringify(broadcastOptions.context)})` : script;
         const nonce = generateNonce();
         const message = {
             nonce,
             _eval: script,
-            options,
+            options: broadcastOptions,
             _type: broadcastOptions._type || messageType.CLIENT_BROADCAST_REQUEST,
         };
         await this.send(message);
@@ -214,7 +220,7 @@ export class ClusterClient<DiscordClient = DjsDiscordClient> extends EventEmitte
         const rawMessage = message || { _type: undefined };
         rawMessage._type = messageType.CUSTOM_REQUEST;
         this.send(rawMessage);
-        return this.promise.create(rawMessage, {});
+        return this.promise.create(rawMessage, { timeout: rawMessage.options?.timeout ?? this.requestTimeout });
     }
 
     /**

@@ -5,7 +5,7 @@ import { ChildClient } from "../Structures/Child";
 import { RawMessage } from "../Structures/IPCMessage";
 import { PromiseHandler } from "../Structures/PromiseHandler";
 import { WorkerClient } from "../Structures/Worker";
-import { Awaitable, ClusterClientEvents, DjsDiscordClient, evalOptions, Serialized } from "../types/shared";
+import { Awaitable, ClusterClientEvents, ClusterClientOptions, DjsDiscordClient, evalOptions, Serialized } from "../types/shared";
 export declare class ClusterClient<DiscordClient = DjsDiscordClient> extends EventEmitter {
     client: DiscordClient;
     mode: 'process' | 'worker';
@@ -18,7 +18,8 @@ export declare class ClusterClient<DiscordClient = DjsDiscordClient> extends Eve
     process: ChildClient | WorkerClient | null;
     messageHandler: any;
     promise: PromiseHandler;
-    constructor(client: DiscordClient);
+    requestTimeout?: number;
+    constructor(client: DiscordClient, options?: ClusterClientOptions);
     /**
      * cluster's id
      */
